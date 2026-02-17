@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thundering Herd Resolver - Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subtitle { color: #666; font-size: 18px; }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .demo-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .input-group { flex: 1; min-width: 200px; }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-baseline { background: #ef4444; }
+        .btn-singleflight { background: #f59e0b; }
+        .btn-full { background: #10b981; }
+        .btn-stampede { background: #8b5cf6; }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .results.show { display: block; }
+
+        .results h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #667eea;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .loading.show { display: block; }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .metric {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .metric:last-child { border-bottom: none; }
+
+        .metric-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .metric-value {
+            text-align: right;
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .success { color: #10b981; font-weight: 600; }
+        .warning { color: #f59e0b; font-weight: 600; }
+        .danger { color: #ef4444; font-weight: 600; }
+
+        .error-message {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚡ Thundering Herd Resolver</h1>
+        <p class="subtitle">Production-ready mitigation strategies</p>
+    </div>
+
+    <div class="card">
+        <h2>Demo Controls</h2>
+        <div class="demo-controls">
+            <div class="input-group">
+                <label for="sku">Product SKU:</label>
+                <input type="text" id="sku" value="DEMO-001">
+            </div>
+            <div class="input-group">
+                <label for="concurrency">Concurrent Requests:</label>
+                <input type="number" id="concurrency" value="100" min="1" max="10000">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-baseline" onclick="runDemo('baseline')">
+                ❌ Baseline (No Mitigation)
+            </button>
+            <button class="btn-singleflight" onclick="runDemo('singleflight')">
+                🔄 Single-Flight Only
+            </button>
+            <button class="btn-full" onclick="runDemo('full')">
+                ✅ Full Solution
+            </button>
+            <button class="btn-stampede" onclick="runDemo('stampede')">
+                ⚔️ Cache Stampede Test
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Running load test... Please wait...</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+</div>
+
+<script>
+    async function runDemo(type) {
+        const sku = document.getElementById('sku').value;
+        const concurrency = document.getElementById('concurrency').value;
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        // Disable all buttons
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => btn.disabled = true);
+
+        // Show loading
+        loading.classList.add('show');
+        results.classList.remove('show');
+
+        try {
+            console.log(`Calling /demo/${type}?sku=${sku}&concurrency=${concurrency}`);
+
+            const response = await fetch(`/demo/${type}?sku=${sku}&concurrency=${concurrency}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Response data:', data);
+
+            displayResults(data, type);
+        } catch (error) {
+            console.error('Error:', error);
+            results.innerHTML = `
+                    <div class="error-message">
+                        <strong>Error:</strong> ${error.message}
+                        <br><br>
+                        <small>Check browser console for details</small>
+                    </div>
+                `;
+            results.classList.add('show');
+        } finally {
+            loading.classList.remove('show');
+            buttons.forEach(btn => btn.disabled = false);
+        }
+    }
+
+    function displayResults(data, type) {
+        const results = document.getElementById('results');
+        let html = '<h3>Results:</h3>';
+
+        // Check if this is a stampede test (has baseline and fullSolution)
+        if (data.baseline && data.fullSolution) {
+            // STAMPEDE TEST DISPLAY
+            html += '<div>';
+
+            // Scenario
+            html += `<div class="metric">
+                    <span class="metric-label">Scenario:</span>
+                    <span class="metric-value">${data.scenario || 'Cache Stampede Test'}</span>
+                </div>`;
+
+            html += `<div class="metric">
+                    <span class="metric-label">Concurrent Requests:</span>
+                    <span class="metric-value">${data.concurrency || 'N/A'}</span>
+                </div>`;
+
+            // Baseline Section
+            html += '<div class="section-title">🔴 Baseline (No Mitigation)</div>';
+
+            html += `<div class="metric">
+                    <span class="metric-label">Database Queries:</span>
+                    <span class="metric-value danger">${data.baseline.databaseQueries}</span>
+                </div>`;
+
+            html += `<div class="metric">
+                    <span class="metric-label">Total Time:</span>
+                    <span class="metric-value">${data.baseline.timeMs}ms</span>
+                </div>`;
+
+            html += `<div class="metric">
+                    <span class="metric-label">Avg Latency:</span>
+                    <span class="metric-value">${data.baseline.avgLatencyMs}ms</span>
+                </div>`;
+
+            // Full Solution Section
+            html += '<div class="section-title">🟢 Full Solution (All Strategies)</div>';
+
+            html += `<div class="metric">
+                    <span class="metric-label">Database Queries:</span>
+                    <span class="metric-value success">${data.fullSolution.databaseQueries}</span>
+                </div>`;
+
+            if (data.fullSolution.cacheHits !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Cache Hits:</span>
+                        <span class="metric-value success">${data.fullSolution.cacheHits}</span>
+                    </div>`;
+            }
+
+            html += `<div class="metric">
+                    <span class="metric-label">Total Time:</span>
+                    <span class="metric-value success">${data.fullSolution.timeMs}ms</span>
+                </div>`;
+
+            html += `<div class="metric">
+                    <span class="metric-label">Avg Latency:</span>
+                    <span class="metric-value success">${data.fullSolution.avgLatencyMs}ms</span>
+                </div>`;
+
+            // Improvement Section
+            if (data.improvement) {
+                html += '<div class="section-title">📊 Improvement</div>';
+
+                if (data.improvement.queriesReduction) {
+                    html += `<div class="metric">
+                            <span class="metric-label">Query Reduction:</span>
+                            <span class="metric-value success">${data.improvement.queriesReduction}</span>
+                        </div>`;
+                }
+
+                if (data.improvement.speedImprovement) {
+                    html += `<div class="metric">
+                            <span class="metric-label">Speed Improvement:</span>
+                            <span class="metric-value success">${data.improvement.speedImprovement}</span>
+                        </div>`;
+                }
+
+                if (data.improvement.summary) {
+                    html += `<div class="metric">
+                            <span class="metric-label">Summary:</span>
+                            <span class="metric-value success">${data.improvement.summary}</span>
+                        </div>`;
+                }
+            }
+
+            html += '</div>';
+
+        } else {
+            // REGULAR TEST DISPLAY (baseline, singleflight, full)
+            html += '<div>';
+
+            // Scenario
+            html += `<div class="metric">
+                    <span class="metric-label">Scenario:</span>
+                    <span class="metric-value">${data.scenario || 'Unknown'}</span>
+                </div>`;
+
+            // Concurrent Requests
+            html += `<div class="metric">
+                    <span class="metric-label">Concurrent Requests:</span>
+                    <span class="metric-value">${data.concurrency || data.totalRequests || 'N/A'}</span>
+                </div>`;
+
+            // Database Queries
+            const dbQueries = data.databaseQueries !== undefined ? data.databaseQueries : 'N/A';
+            const dbClass = dbQueries < 10 ? 'success' : (dbQueries < 50 ? 'warning' : 'danger');
+            html += `<div class="metric">
+                    <span class="metric-label">Database Queries:</span>
+                    <span class="metric-value ${dbClass}">${dbQueries}</span>
+                </div>`;
+
+            // Cache Hits (if available)
+            if (data.cacheHits !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Cache Hits:</span>
+                        <span class="metric-value success">${data.cacheHits}</span>
+                    </div>`;
+            }
+
+            // Cache Hit Rate (if available)
+            if (data.cacheHitRate !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Cache Hit Rate:</span>
+                        <span class="metric-value success">${data.cacheHitRate}</span>
+                    </div>`;
+            }
+
+            // Deduplication info (if available)
+            if (data.deduplications !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Deduplications:</span>
+                        <span class="metric-value success">${data.deduplications}</span>
+                    </div>`;
+            }
+
+            if (data.dedupRatio !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Dedup Ratio:</span>
+                        <span class="metric-value success">${data.dedupRatio}</span>
+                    </div>`;
+            }
+
+            // Total Time
+            html += `<div class="metric">
+                    <span class="metric-label">Total Time:</span>
+                    <span class="metric-value">${data.totalTimeMs || 'N/A'}ms</span>
+                </div>`;
+
+            // Average Latency
+            if (data.avgLatencyMs !== undefined) {
+                html += `<div class="metric">
+                        <span class="metric-label">Avg Latency:</span>
+                        <span class="metric-value">${data.avgLatencyMs}ms</span>
+                    </div>`;
+            }
+
+            // Improvement
+            if (data.improvement) {
+                html += `<div class="metric">
+                        <span class="metric-label">Improvement:</span>
+                        <span class="metric-value success">${data.improvement}</span>
+                    </div>`;
+            }
+
+            // Problem/Impact (for baseline)
+            if (data.problem) {
+                html += `<div class="metric">
+                        <span class="metric-label">Problem:</span>
+                        <span class="metric-value danger">${data.problem}</span>
+                    </div>`;
+            }
+
+            if (data.impact) {
+                html += `<div class="metric">
+                        <span class="metric-label">Impact:</span>
+                        <span class="metric-value danger">${data.impact}</span>
+                    </div>`;
+            }
+
+            // Strategies (for full solution)
+            if (data.strategies) {
+                html += `<div class="metric">
+                        <span class="metric-label">Strategies:</span>
+                        <span class="metric-value success" style="font-size: 12px;">${data.strategies}</span>
+                    </div>`;
+            }
+
+            html += '</div>';
+        }
+
+        results.innerHTML = html;
+        results.classList.add('show');
+    }
+
+    window.addEventListener('load', async () => {
+        try {
+            const response = await fetch('/actuator/health');
+            if (response.ok) {
+                console.log('✅ Backend connection successful');
+            } else {
+                console.warn('⚠️ Backend health check failed');
+            }
+        } catch (error) {
+            console.error('❌ Cannot connect to backend:', error);
+        }
+    });
+</script>
+</body>
+</html>

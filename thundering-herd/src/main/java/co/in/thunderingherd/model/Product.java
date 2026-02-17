@@ -24,6 +24,7 @@ public class Product {
 
     @Column(nullable = false)
     private String name;
+
     private String description;
 
     @Column(nullable = false)
@@ -32,10 +33,10 @@ public class Product {
     @Column(nullable = false)
     private Integer inventory;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at")
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     @PrePersist
@@ -43,9 +44,9 @@ public class Product {
         createdAt = Instant.now();
         updatedAt = Instant.now();
     }
+
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
     }
-
 }
